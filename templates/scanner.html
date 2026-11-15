@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}On-Site Check-In Scanner{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+    
+    <!-- Left Column: Camera Scanner & Manual Input -->
+    <div class="md:col-span-7 space-y-4">
+      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-2">
+            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-600">
+              <i class="fa-solid fa-camera"></i>
+            </span>
+            <h2 class="text-base font-bold text-slate-800">QR Code Camera Scanner</h2>
+          </div>
+          <span id="scannerStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+            Idle
+          </span>
+        </div>
+
+        <!-- Video Reader Container -->
+        <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center border border-slate-300">
+          <div id="reader" class="w-full h-full"></div>
+          <div id="scannerPlaceholder" class="text-center p-6 text-slate-400">
+            <i class="fa-solid fa-camera-rotate text-4xl mb-2"></i>
+            <p class="text-xs">Click "Start Camera" below to activate scanner</p>
+          </div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button id="startScanBtn" class="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-play"></i>
+            <span>Start Camera</span>
+          </button>
+          <button id="stopScanBtn" class="py-2 px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition hidden flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-stop"></i>
+            <span>Stop Camera</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- USB Barcode Scanner / Manual Code Entry -->
+      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4">
+        <label for="manualTicketInput" class="block text-xs font-semibold text-slate-600 mb-1">
+          <i class="fa-solid fa-barcode mr-1"></i> USB Barcode Scanner or Manual Ticket ID Entry
+        </label>
+        <form id="manualForm" class="flex gap-2">
+          <input type="text" id="manualTicketInput" placeholder="Scan or enter TKT-XXXXXXXX..."
+            class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none uppercase">
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition">
+            Verify
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Right Column: Live Status & Verification Result -->
+    <div class="md:col-span-5 space-y-4">
+      
+      <!-- Live Result Card -->
+      <div id="resultCard" class="bg-white rounded-2xl shadow-md border border-slate-200 p-6 text-center transition-all">
+        <div id="resultIconWrapper" class="w-16 h-16 mx-auto rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-3xl mb-3">
+          <i class="fa-solid fa-qrcode" id="resultIcon"></i>
+        </div>
+        <h3 id="resultTitle" class="text-base font-bold text-slate-700">Awaiting Scan...</h3>
+        <p id="resultMessage" class="text-xs text-slate-500 mt-1">Point your camera at attendee's digital or printed QR pass.</p>
+
+        <!-- Attendee Detail Box (hidden until scan) -->
+        <div id="attendeeDetailsBox" class="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100 text-left text-xs space-y-1.5 hidden">
+          <div><span class="text-slate-500">Name:</span> <strong id="resName" class="text-slate-800"></strong></div>
+          <div><span class="text-slate-500">Email:</span> <span id="resEmail" class="text-slate-700"></span></div>
+          <div><span class="text-slate-500">Org:</span> <span id="resOrg" class="text-slate-700"></span></div>
+          <div><span class="text-slate-500">Time:</span> <span id="resTime" class="text-slate-700 font-mono"></span></div>
+        </div>
+      </div>
+
+      <!-- Scan History Log -->
+      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-4">
+        <h3 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center justify-between">
+          <span>Recent Activity</span>
+          <span id="sessionCounter" class="text-indigo-600 font-bold">0 verified</span>
+        </h3>
+        <div id="scanHistory" class="space-y-2 max-h-56 overflow-y-auto text-xs divide-y divide-slate-100">
+          <p class="text-slate-400 text-center py-4" id="emptyHistoryNotice">No scans yet this session.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- HTML5-QRCode CDN -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+  let html5QrCode = null;
+  let isScanning = false;
+  let scanCooldown = false;
+  let verifiedCount = 0;
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  function playChime(type) {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'success') {
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+      osc.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.1); // A5
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.35);
+    } else if (type === 'duplicate') {
+      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    }
+  }
+
+  async function processTicket(ticketId) {
+    if (scanCooldown) return;
+    scanCooldown = true;
+
+    try {
+      const response = await fetch("/api/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket_id: ticketId.trim() })
+      });
+      const data = await response.json();
+      renderScanResult(response.status, data, ticketId);
+    } catch (err) {
+      console.error(err);
+      renderScanResult(500, { message: "Network connection error." }, ticketId);
+    } finally {
+      // Cooldown to prevent duplicate triggers while same QR code is held in frame
+      setTimeout(() => { scanCooldown = false; }, 2200);
+    }
+  }
+
+  function renderScanResult(status, data, rawId) {
+    const card = document.getElementById("resultCard");
+    const iconWrapper = document.getElementById("resultIconWrapper");
+    const icon = document.getElementById("resultIcon");
+    const title = document.getElementById("resultTitle");
+    const message = document.getElementById("resultMessage");
+    const detailsBox = document.getElementById("attendeeDetailsBox");
+
+    if (status === 200) {
+      // SUCCESS
+      playChime('success');
+      verifiedCount++;
+      document.getElementById("sessionCounter").innerText = `${verifiedCount} verified`;
+
+      card.className = "bg-emerald-50 rounded-2xl shadow-md border-2 border-emerald-500 p-6 text-center";
+      iconWrapper.className = "w-16 h-16 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center text-3xl mb-3 shadow-md";
+      icon.className = "fa-solid fa-check";
+      title.className = "text-lg font-extrabold text-emerald-800";
+      title.innerText = "CHECK-IN APPROVED ✅";
+      message.className = "text-xs text-emerald-700 mt-1";
+      message.innerText = `Welcome, ${data.attendee.full_name}!`;
+
+      // Fill details
+      detailsBox.classList.remove("hidden");
+      document.getElementById("resName").innerText = data.attendee.full_name;
+      document.getElementById("resEmail").innerText = data.attendee.email;
+      document.getElementById("resOrg").innerText = data.attendee.organization || "N/A";
+      document.getElementById("resTime").innerText = data.attendee.checked_in_at;
+
+      appendHistory(data.attendee.full_name, rawId, "Approved", "text-emerald-600 bg-emerald-50 border-emerald-200");
+
+    } else if (status === 409) {
+      // DUPLICATE
+      playChime('duplicate');
+      card.className = "bg-amber-50 rounded-2xl shadow-md border-2 border-amber-500 p-6 text-center";
+      iconWrapper.className = "w-16 h-16 mx-auto rounded-full bg-amber-500 text-white flex items-center justify-center text-3xl mb-3 shadow-md";
+      icon.className = "fa-solid fa-triangle-exclamation";
+      title.className = "text-lg font-extrabold text-amber-800";
+      title.innerText = "ALREADY CHECKED IN ⚠️";
+      message.className = "text-xs text-amber-700 mt-1";
+      message.innerText = data.message;
+
+      if (data.attendee) {
+        detailsBox.classList.remove("hidden");
+        document.getElementById("resName").innerText = data.attendee.full_name;
+        document.getElementById("resEmail").innerText = data.attendee.email;
+        document.getElementById("resOrg").innerText = data.attendee.organization || "N/A";
+        document.getElementById("resTime").innerText = data.attendee.checked_in_at;
+      }
+
+      appendHistory(data.attendee?.full_name || rawId, rawId, "Duplicate", "text-amber-600 bg-amber-50 border-amber-200");
+
+    } else {
+      // NOT FOUND / ERROR
+      playChime('error');
+      card.className = "bg-rose-50 rounded-2xl shadow-md border-2 border-rose-500 p-6 text-center";
+      iconWrapper.className = "w-16 h-16 mx-auto rounded-full bg-rose-500 text-white flex items-center justify-center text-3xl mb-3 shadow-md";
+      icon.className = "fa-solid fa-xmark";
+      title.className = "text-lg font-extrabold text-rose-800";
+      title.innerText = "INVALID TICKET ❌";
+      message.className = "text-xs text-rose-700 mt-1";
+      message.innerText = data.message || "Ticket ID not found in database.";
+      detailsBox.classList.add("hidden");
+
+      appendHistory(rawId, rawId, "Invalid", "text-rose-600 bg-rose-50 border-rose-200");
+    }
+  }
+
+  function appendHistory(title, code, status, pillStyle) {
+    const list = document.getElementById("scanHistory");
+    const empty = document.getElementById("emptyHistoryNotice");
+    if (empty) empty.remove();
+
+    const item = document.createElement("div");
+    item.className = "pt-2 pb-1 flex items-center justify-between";
+    item.innerHTML = `
+      <div class="truncate mr-2">
+        <span class="font-bold text-slate-800">${title}</span>
+        <span class="text-[10px] text-slate-400 block font-mono">${code}</span>
+      </div>
+      <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${pillStyle}">${status}</span>
+    `;
+    list.prepend(item);
+  }
+
+  // Camera start / stop logic
+  const startBtn = document.getElementById("startScanBtn");
+  const stopBtn = document.getElementById("stopScanBtn");
+  const placeholder = document.getElementById("scannerPlaceholder");
+  const statusBadge = document.getElementById("scannerStatusBadge");
+
+  startBtn.addEventListener("click", () => {
+    html5QrCode = new Html5Qrcode("reader");
+    placeholder.classList.add("hidden");
+    statusBadge.innerText = "Starting...";
+    statusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700";
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        processTicket(decodedText);
+      },
+      (error) => {
+        // Ignored during normal scanning frames
+      }
+    ).then(() => {
+      isScanning = true;
+      startBtn.classList.add("hidden");
+      stopBtn.classList.remove("hidden");
+      statusBadge.innerText = "Live Scanning";
+      statusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700";
+    }).catch(err => {
+      console.error("Camera start error:", err);
+      alert("Unable to open camera: " + err);
+      placeholder.classList.remove("hidden");
+      statusBadge.innerText = "Camera Error";
+      statusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-700";
+    });
+  });
+
+  stopBtn.addEventListener("click", () => {
+    if (html5QrCode && isScanning) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        isScanning = false;
+        startBtn.classList.remove("hidden");
+        stopBtn.classList.add("hidden");
+        placeholder.classList.remove("hidden");
+        statusBadge.innerText = "Stopped";
+        statusBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600";
+      });
+    }
+  });
+
+  // Manual Form
+  document.getElementById("manualForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("manualTicketInput");
+    if (input.value.trim()) {
+      processTicket(input.value.trim());
+      input.value = "";
+    }
+  });
+</script>
+{% endblock %}
+

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Event Management & Check-in System{% endblock %}</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Heroicons / FontAwesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Navbar -->
+  <header class="bg-indigo-600 text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-qrcode text-2xl text-indigo-200"></i>
+        <a href="/" class="text-xl font-bold tracking-tight hover:text-indigo-100">EventPass QR</a>
+      </div>
+      <nav class="flex items-center space-x-4 text-sm font-medium">
+        <a href="/" class="hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition"><i class="fa-solid fa-user-plus mr-1"></i> Register</a>
+        <a href="/scanner" class="bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg shadow-sm transition"><i class="fa-solid fa-camera mr-1"></i> Check-in Scanner</a>
+        <a href="/dashboard" class="hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition"><i class="fa-solid fa-chart-pie mr-1"></i> Live Dashboard</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-5xl mx-auto w-full px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    Event Registration & QR Check-in System &bull; Step 1-4 Automated Workflow
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

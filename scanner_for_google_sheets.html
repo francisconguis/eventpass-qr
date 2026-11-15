@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Camera Check-in Scanner (Google Sheets)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 flex flex-col items-center">
+
+  <div class="max-w-md w-full space-y-4">
+
+    <!-- Header -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 text-center">
+      <div class="inline-flex items-center justify-center w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full mb-2">
+        <i class="fa-solid fa-qrcode text-2xl"></i>
+      </div>
+      <h1 class="text-xl font-bold text-slate-900">Event Check-in Scanner</h1>
+      <p class="text-xs text-slate-500 mt-1">Live continuous camera scanner connected to Google Sheets</p>
+    </div>
+
+    <!-- Live Camera Scanner Box -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+      <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+        <div id="reader" class="w-full h-full"></div>
+        <div id="cameraPlaceholder" class="text-center p-6 text-slate-400">
+          <i class="fa-solid fa-camera text-4xl mb-2 text-slate-500"></i>
+          <p class="text-xs">Click "Start Camera" below</p>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button id="startBtn"
+          class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs transition flex items-center justify-center space-x-1.5 shadow">
+          <i class="fa-solid fa-play"></i>
+          <span>Start Camera</span>
+        </button>
+        <button id="stopBtn"
+          class="hidden py-2.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold text-xs transition flex items-center justify-center space-x-1.5">
+          <i class="fa-solid fa-stop"></i>
+          <span>Stop</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Status Result Card -->
+    <div id="resultCard"
+      class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 text-center hidden transition-all">
+      <div id="resultIcon" class="w-12 h-12 mx-auto rounded-full flex items-center justify-center text-2xl mb-2"></div>
+      <h2 id="resultTitle" class="text-base font-bold"></h2>
+      <p id="resultMsg" class="text-xs mt-1"></p>
+    </div>
+
+    <!-- Manual Code Input Fallback -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">
+        ⌨️ Manual Ticket ID or USB Scanner
+      </label>
+      <form id="manualForm" class="flex gap-2">
+        <input type="text" id="manualInput" placeholder="TKT-XXXXXXXX"
+          class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono uppercase outline-none focus:ring-2 focus:ring-indigo-500">
+        <button type="submit"
+          class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium rounded-lg transition">
+          Verify
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+  <script>
+    let html5QrCode = null;
+    let isScanning = false;
+    let cooldown = false;
+
+    // Embedded Google Apps Script Web App URL
+    const HARDCODED_URL = "https://script.google.com/macros/s/AKfycbxxICT9TqBU2IjkRiePub_bCicBfSMC_HhUJRh7-F-g7X6E1L5sHaXp-oeTTBdhqxKsZQ/exec";
+
+    // Audio Chimes (Web Audio API)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playChime(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if (type === 'success') {
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.35);
+      } else if (type === 'duplicate') {
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      } else {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      }
+    }
+
+    // Camera Controls
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const placeholder = document.getElementById('cameraPlaceholder');
+
+    startBtn.addEventListener('click', () => {
+      html5QrCode = new Html5Qrcode('reader');
+      placeholder.classList.add('hidden');
+
+      html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          if (cooldown) return;
+          cooldown = true;
+          verifyTicket(decodedText);
+          setTimeout(() => { cooldown = false; }, 2500);
+        },
+        (error) => { }
+      ).then(() => {
+        isScanning = true;
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+      }).catch(err => {
+        console.error(err);
+        alert('Unable to access camera: ' + err);
+        placeholder.classList.remove('hidden');
+      });
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (html5QrCode && isScanning) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          isScanning = false;
+          startBtn.classList.remove('hidden');
+          stopBtn.classList.add('hidden');
+          placeholder.classList.remove('hidden');
+        });
+      }
+    });
+
+    // Manual Input
+    document.getElementById('manualForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = document.getElementById('manualInput').value.trim();
+      if (val) {
+        verifyTicket(val);
+        document.getElementById('manualInput').value = '';
+      }
+    });
+
+    async function verifyTicket(ticketId) {
+      const card = document.getElementById('resultCard');
+      const icon = document.getElementById('resultIcon');
+      const title = document.getElementById('resultTitle');
+      const msg = document.getElementById('resultMsg');
+
+      card.classList.remove('hidden');
+      card.className = 'bg-blue-50 border-2 border-blue-400 p-5 rounded-2xl text-center text-blue-900';
+      icon.className = 'w-12 h-12 mx-auto rounded-full bg-blue-500 text-white flex items-center justify-center text-2xl mb-2';
+      icon.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      title.innerText = 'Verifying Ticket...';
+      msg.innerText = ticketId;
+
+      try {
+        const fetchUrl = HARDCODED_URL + (HARDCODED_URL.includes('?') ? '&' : '?') + 'ticket_id=' + encodeURIComponent(ticketId) + '&format=json';
+        const res = await fetch(fetchUrl);
+        const data = await res.json();
+
+        if (data.status === 'success') {
+          playChime('success');
+          card.className = 'bg-emerald-50 border-2 border-emerald-500 p-5 rounded-2xl text-center text-emerald-900';
+          icon.className = 'w-12 h-12 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center text-2xl mb-2';
+          icon.innerHTML = '<i class="fa-solid fa-check"></i>';
+          title.innerText = 'APPROVED ✅';
+          msg.innerText = data.message;
+        } else if (data.status === 'already_checked_in') {
+          playChime('duplicate');
+          card.className = 'bg-amber-50 border-2 border-amber-500 p-5 rounded-2xl text-center text-amber-900';
+          icon.className = 'w-12 h-12 mx-auto rounded-full bg-amber-500 text-white flex items-center justify-center text-2xl mb-2';
+          icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+          title.innerText = 'ALREADY CHECKED IN ⚠️';
+          msg.innerText = data.message;
+        } else {
+          playChime('error');
+          card.className = 'bg-rose-50 border-2 border-rose-500 p-5 rounded-2xl text-center text-rose-900';
+          icon.className = 'w-12 h-12 mx-auto rounded-full bg-rose-500 text-white flex items-center justify-center text-2xl mb-2';
+          icon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+          title.innerText = 'INVALID TICKET ❌';
+          msg.innerText = data.message;
+        }
+      } catch (err) {
+        console.error(err);
+        playChime('error');
+        card.className = 'bg-rose-50 border-2 border-rose-500 p-5 rounded-2xl text-center text-rose-900';
+        icon.className = 'w-12 h-12 mx-auto rounded-full bg-rose-500 text-white flex items-center justify-center text-2xl mb-2';
+        icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+        title.innerText = 'Connection Error';
+        msg.innerText = 'Could not reach Google Sheets. Check your Web App URL.';
+      }
+    }
+  </script>
+</body>
+
+</html>

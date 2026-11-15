@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Live Event Dashboard & Attendance{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Top Metrics Bar -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Registered</p>
+        <p class="text-3xl font-extrabold text-slate-800 mt-1">{{ total }}</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+        <i class="fa-solid fa-users"></i>
+      </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Checked In</p>
+        <p class="text-3xl font-extrabold text-emerald-600 mt-1">{{ checked_in_count }}</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+        <i class="fa-solid fa-user-check"></i>
+      </div>
+    </div>
+
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div>
+        <p class="text-xs font-semibold text-amber-600 uppercase tracking-wider">Pending Arrival</p>
+        <p class="text-3xl font-extrabold text-amber-600 mt-1">{{ pending_count }}</p>
+      </div>
+      <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+        <i class="fa-solid fa-clock"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendee Table Section -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <!-- Toolbar -->
+    <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div class="relative w-full sm:w-72">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+          <i class="fa-solid fa-magnifying-glass text-xs"></i>
+        </div>
+        <input type="text" id="tableSearch" placeholder="Search name, email, or ticket..."
+          class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+      </div>
+
+      <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+        <a href="/export/csv" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition flex items-center space-x-1">
+          <i class="fa-solid fa-file-csv"></i>
+          <span>Export CSV</span>
+        </a>
+        <a href="/scanner" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg transition flex items-center space-x-1 shadow-sm">
+          <i class="fa-solid fa-camera"></i>
+          <span>Open Scanner</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs" id="attendeesTable">
+        <thead class="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+          <tr>
+            <th class="py-3 px-4">Ticket ID</th>
+            <th class="py-3 px-4">Attendee</th>
+            <th class="py-3 px-4">Organization</th>
+            <th class="py-3 px-4">Status</th>
+            <th class="py-3 px-4">Check-in Time</th>
+            <th class="py-3 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for a in attendees %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-4 font-mono font-bold text-indigo-600">{{ a['ticket_id'] }}</td>
+            <td class="py-3 px-4">
+              <div class="font-semibold text-slate-800">{{ a['full_name'] }}</div>
+              <div class="text-[11px] text-slate-400">{{ a['email'] }}</div>
+            </td>
+            <td class="py-3 px-4 text-slate-600">{{ a['organization'] or '—' }}</td>
+            <td class="py-3 px-4">
+              {% if a['checked_in'] == 1 %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                <i class="fa-solid fa-circle-check mr-1 text-[9px]"></i> Checked In
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+                <i class="fa-regular fa-clock mr-1 text-[9px]"></i> Registered
+              </span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-4 text-slate-500 font-mono text-[11px]">
+              {{ a['checked_in_at'] or '—' }}
+            </td>
+            <td class="py-3 px-4 text-right space-x-1">
+              <a href="/confirmation/{{ a['ticket_id'] }}" target="_blank" title="View Pass"
+                 class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[11px] transition inline-block">
+                <i class="fa-solid fa-ticket"></i>
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-8 text-slate-400">
+              No attendees registered yet. <a href="/" class="text-indigo-600 font-semibold underline">Register the first attendee</a>.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById("tableSearch").addEventListener("keyup", function() {
+    const filter = this.value.toLowerCase();
+    const rows = document.querySelectorAll("#attendeesTable tbody tr");
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(filter) ? "" : "none";
+    });
+  });
+</script>
+{% endblock %}
+
