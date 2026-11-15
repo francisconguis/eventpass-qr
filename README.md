@@ -1,96 +1,141 @@
-# 🎟️ Complete Event Registration & QR Check-in System
+# 🎟️ EventPass QR — Automated Event Registration & On-Site Check-In System
 
-A complete solution for your event registration, automated QR code ticketing, email delivery, and on-site scanner verification.
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.0.3-000000?style=flat&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![Render](https://img.shields.io/badge/Render-Deployed%20Live-46E3B7?style=flat&logo=render&logoColor=white)](https://eventpass-qr.onrender.com/)
+[![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-Cloud-4285F4?style=flat&logo=google&logoColor=white)](https://developers.google.com/apps-script)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
----
-
-## 📁 Project Architecture & Components
-
-```
-project3/
-├── app.py                      # Flask backend handling registration, QR, email & check-in API
-├── requirements.txt            # Python dependencies (Flask, qrcode, pillow, python-dotenv)
-├── .env.example                # Configuration & SMTP email environment variables
-├── google_apps_script.js       # Alternative: Zero-code Google Sheets / Google Forms automation script
-├── templates/
-│   ├── base.html               # Base layout with Tailwind CSS & navigation
-│   ├── register.html           # Step 1: Attendee registration form
-│   ├── confirmation.html       # Step 2: Instant ticket preview & QR download
-│   ├── scanner.html            # Step 4: Live mobile camera QR scanner with audio cues
-│   └── dashboard.html          # Real-time attendance dashboard & CSV export
-├── static/
-│   └── qrcodes/                # Generated QR code image files (.png)
-└── sent_emails/                # Local test previews for sent emails
-```
+An end-to-end event ticketing, automated QR generation, email delivery, and on-site check-in verification system.
 
 ---
 
-## 🚀 Method 1: Custom Web App (Python + Flask)
+## 🌐 Live Cloud Demo (Render)
 
-### Step 1: Setup & Dependencies
-Open PowerShell or your terminal in this directory:
+Experience the live deployed application 24/7 without running any local servers:
+
+| Service | Live Link | Description |
+|---|---|---|
+| **Attendee Registration** | [https://eventpass-qr.onrender.com/](https://eventpass-qr.onrender.com/) | Public form to sign up & generate admission ticket pass |
+| **Check-in Scanner** | [https://eventpass-qr.onrender.com/scanner](https://eventpass-qr.onrender.com/scanner) | On-site camera scanner with audio chimes & duplicate check |
+| **Attendance Dashboard** | [https://eventpass-qr.onrender.com/dashboard](https://eventpass-qr.onrender.com/dashboard) | Real-time organizer dashboard with live check-in stats & CSV export |
+
+---
+
+## ⚡ The 4-Stage Operational Workflow
+
+```
+┌─────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐      ┌──────────────────────────┐
+│  1. Registration    │ ───> │  2. Token & QR Script   │ ───> │   3. Email Delivery     │ ───> │  4. On-Site Check-In     │
+│  Attendee details   │      │  Unique UUID ticket ID  │      │  HTML confirmation pass │      │  Webcam/camera scanner   │
+│  captured via form  │      │  & QR code generated    │      │  with inline QR ticket  │      │  with duplicate warning  │
+└─────────────────────┘      └─────────────────────────┘      └─────────────────────────┘      └──────────────────────────┘
+```
+
+---
+
+## ✨ Key Features
+
+- **Unique Ticket Generation:** Automatically hashes attendee data into cryptographically unique tickets (`TKT-XXXXXXXX`).
+- **Dynamic QR Code Rendering:** Generates scannable, high-contrast QR code images dynamically upon registration.
+- **Automated Email Dispatch:** Sends responsive HTML admission passes directly to participants with embedded QR codes.
+- **On-Site Camera Scanner:** Live in-browser QR scanning utilizing device webcams or smartphone cameras with zero app installs required.
+- **Duplicate Entry Prevention:** Detects if a ticket has already been used and displays a timestamped warning to prevent badge sharing.
+- **Audio Feedback:** Synthesizes pleasant approval chimes, warning tones, and error buzzers via the Web Audio API.
+- **Live Attendance Dashboard:** Real-time metrics tracking total registrations, checked-in guests, pending arrivals, and CSV reporting.
+
+---
+
+## 📂 Repository Structure
+
+```
+├── app.py                           # Flask backend server, SQLite ORM & Check-in API
+├── google_apps_script.js            # Google Apps Script for Google Forms + Sheets automation
+├── scanner_for_google_sheets.html   # Standalone camera check-in kiosk for Google Sheets
+├── test_workflow.py                 # Automated end-to-end test suite
+├── requirements.txt                 # Python dependencies
+├── Procfile                         # Cloud production server deployment configuration (Gunicorn)
+├── .env.example                     # Environment template for SMTP configuration
+├── start.bat                        # One-click Windows launcher
+├── templates/                       # Responsive Jinja2 templates (Tailwind CSS)
+│   ├── base.html                    # Base layout with navigation
+│   ├── register.html                # Attendee registration form
+│   ├── confirmation.html            # Digital admission pass & QR download
+│   ├── scanner.html                 # Mobile & webcam QR scanner interface
+│   └── dashboard.html               # Real-time attendance dashboard & CSV export
+└── static/
+    └── qrcodes/                     # Generated QR code storage directory
+```
+
+---
+
+## 🚀 Two Production-Ready Implementations
+
+### Implementation 1: Full-Stack Python Web App (Render / Self-Hosted)
+
+#### Live Endpoints
+- **Public Registration:** `https://eventpass-qr.onrender.com/`
+- **On-Site Scanner:** `https://eventpass-qr.onrender.com/scanner`
+- **Live Organizer Dashboard:** `https://eventpass-qr.onrender.com/dashboard`
+- **Check-In API:** `POST https://eventpass-qr.onrender.com/api/checkin`
+
+#### Local Development Setup
 ```bash
+# Clone the repository
+git clone https://github.com/francisconguis/eventpass-qr.git
+cd eventpass-qr
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### Step 2: Configure Environment (Optional)
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-> **Note:** If you do not configure an SMTP password, the system automatically runs in **Offline Test Mode**. It generates the QR codes and writes the full email HTML files to the `sent_emails/` folder so you can verify email output without configuring an email server!
-
-### Step 3: Run the Server
-```bash
+# Start the local server
 python app.py
 ```
-Visit:
-- **Registration Form:** [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
-- **Camera Check-in Scanner:** [http://127.0.0.1:5000/scanner](http://127.0.0.1:5000/scanner)
-- **Live Attendance Dashboard:** [http://127.0.0.1:5000/dashboard](http://127.0.0.1:5000/dashboard)
+Local URLs:
+- Registration: [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
+- Scanner: [http://127.0.0.1:5000/scanner](http://127.0.0.1:5000/scanner)
+- Dashboard: [http://127.0.0.1:5000/dashboard](http://127.0.0.1:5000/dashboard)
 
 ---
 
-## 📋 The 4-Step Implementation & Verification Walkthrough
+### Implementation 2: Google Workspace (Cloud Low-Code)
 
-### 1. Registration Form (Frontend)
-- **File:** `templates/register.html`
-- **Fields:** Full Name, Email Address, Organization, Contact Number.
-- **Verification:** Submit the form at `http://127.0.0.1:5000/`. The form validates required inputs and immediately inserts a new record into `event_data.db`.
+Ideal for events that require zero server hosting.
 
-### 2. Database & QR Code Script (Backend / Automation)
-- **File:** `app.py` (`generate_qr_code()`)
-- **Process:**
-  1. Generates a unique Ticket ID (e.g. `TKT-7F2A8E19`).
-  2. Creates a clean, high-contrast QR code image saved to `static/qrcodes/<ticket_id>.png`.
-  3. Records the attendee as `checked_in = 0`.
-- **Verification:** After submission, check `static/qrcodes/` to see the generated `.png` image or view it directly on the confirmation screen.
-
-### 3. Automated Email Delivery (Messaging)
-- **File:** `app.py` (`send_confirmation_email()`)
-- **Process:**
-  - **Live Mode:** Connects to your SMTP provider (Gmail, SendGrid, Amazon SES) and delivers an HTML ticket with the inline QR code (`cid:qrcode_image`).
-  - **Test Mode:** If SMTP is unconfigured, it saves the rendered HTML message into `sent_emails/<ticket_id>.html`.
-- **Verification:** Open `sent_emails/<ticket_id>.html` in your browser or check your email inbox to confirm delivery and layout.
-
-### 4. On-Site Check-in Scanner (Event Day)
-- **File:** `templates/scanner.html` & `POST /api/checkin`
-- **Features:**
-  - Works directly on smartphones, tablets, or laptops using the camera (`html5-qrcode`).
-  - Works with hardware USB barcode scanners or keyboard inputs.
-  - **Duplicate Prevention:** Detects if an attendee was already checked in and displays a warning with their previous check-in time.
-  - **Audio feedback:** Chimes for approval, double-chime for duplicate, buzz for invalid.
-- **Verification:** Open `/scanner` on your phone or laptop webcam, scan the test QR code on your screen or printed page, and verify the green **"CHECK-IN APPROVED"** response and live counter update.
+1. **Google Form:** Create a form with: *Full Name*, *Email Address*, *Organization*, *Contact Number*.
+2. **Google Sheet:** In the Form's **Responses** tab, link to a new Google Sheet.
+3. **Apps Script:** In the Google Sheet, go to **Extensions** → **Apps Script**, replace the code with [`google_apps_script.js`](./google_apps_script.js), and run `setupTriggers()`.
+4. **Deploy Web App:** Click **Deploy** → **New deployment** → **Web app** (Access: *Anyone*).
+5. **Kiosk Scanner:** Open [`scanner_for_google_sheets.html`](./scanner_for_google_sheets.html) on any laptop at your check-in desk.
 
 ---
 
-## ☁️ Method 2: Google Forms + Google Sheets + Apps Script (100% Free / Cloud Hosted)
+## 🧪 Testing & Verification
 
-If you prefer using Google Workspace without hosting a server:
+Run the automated test suite to verify all four stages:
+```bash
+python test_workflow.py
+```
 
-1. **Create Form:** Go to [Google Forms](https://forms.google.com) and add the fields: *Full Name*, *Email Address*, *Organization*, *Contact Number*.
-2. **Link Sheet:** Click **Responses** -> **Link to Sheets**.
-3. **Add Script:** In your Google Sheet, click **Extensions** -> **Apps Script**.
-4. **Paste Code:** Replace all content with `google_apps_script.js` from this folder.
-5. **Authorize:** Select the `setupTriggers` function in the dropdown and click **Run**. Grant permissions when prompted.
-6. **Verify:** Submit a test entry through Google Forms. Check your inbox for the automated QR ticket email and verify that the Sheet auto-populates the *Ticket ID* and *Check-in Status*.
+**Verification Output:**
+```text
+🧪 Running End-to-End System Tests...
+[Step 1] Testing Registration Form Submission...
+  ✅ Form accepted! Generated Ticket ID: TKT-B18A42F0
+[Step 2] Verifying Database Record & QR Code...
+  ✅ Database row confirmed: Alex Developer (Status: Registered)
+  ✅ QR Code image verified on disk
+[Step 3] Verifying Email Dispatch...
+  ✅ Email preview captured
+[Step 4] Verifying Scanner Check-in API...
+  ✅ Scan #1: APPROVED - Welcome, Alex Developer!
+  ✅ Scan #2 (Duplicate): BLOCKED - Already checked in
+  ✅ Scan #3 (Invalid Code): REJECTED - Correctly returned 404
+🎉 ALL 4 WORKFLOW STEPS PASSED VERIFICATION SUCCESSFULLY!
+```
+
+---
+
+## 📄 License
+This project is open-source and available under the [MIT License](LICENSE).
