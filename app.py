@@ -60,22 +60,30 @@ def get_db():
 
 def generate_qr_code(ticket_id: str) -> str:
     """Generates a QR code image for the ticket and saves to static/qrcodes/"""
-    filename = f"{ticket_id}.png"
-    filepath = QR_DIR / filename
-    
-    # Payload embedded inside QR Code
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=10,
-        border=3,
-    )
-    qr.add_data(ticket_id)
-    qr.make(fit=True)
-    
-    img = qr.make_image(fill_color="#1E293B", back_color="#FFFFFF")
-    img.save(filepath)
-    return filename
+    try:
+        filename = f"{ticket_id}.png"
+        filepath = QR_DIR / filename
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=3,
+        )
+        qr.add_data(ticket_id)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#1E293B", back_color="#FFFFFF")
+        img.save(filepath)
+        return filename
+    except Exception:
+        # Fallback to pure-Python SVG (doesn't require Pillow or C libraries)
+        import qrcode.image.svg
+        filename = f"{ticket_id}.svg"
+        filepath = QR_DIR / filename
+        factory = qrcode.image.svg.SvgPathImage
+        img = qrcode.make(ticket_id, image_factory=factory)
+        img.save(filepath)
+        return filename
 
 def send_confirmation_email(attendee: dict, qr_filename: str):
     """Sends an automated confirmation email with embedded QR code.
